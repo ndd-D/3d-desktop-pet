@@ -125,6 +125,15 @@ const isFormValid = computed(() => {
   return newTask.value.title.trim() !== ''
 })
 const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error' | 'warning'>('success')
+
+function showMessage(message: string, type: 'success' | 'error' | 'warning' = 'success') {
+  toastMessage.value = message
+  toastType.value = type
+  showToast.value = true
+}
+
 /**
  * 添加新任务
  */
@@ -135,7 +144,7 @@ async function addTask() {
   // 检查标题是否重复
   const existingTask = tasks.value.find((t) => t.title === newTask.value.title)
   if (existingTask) {
-    showToast.value = true
+    showMessage('任务标题已存在，请使用不同的标题', 'warning')
     throw new Error()
   }
 
@@ -158,6 +167,8 @@ async function addTask() {
   }
 
   await loadTasks()
+  showMessage('任务添加成功')
+  window.ipcRenderer.send('task-changed')
 }
 
 /**
@@ -166,6 +177,9 @@ async function addTask() {
 async function updateTaskStatus(task: Task, newStatus: Task['status']) {
   await db.updateTask(task.id!, { status: newStatus })
   await loadTasks()
+  const statusText = newStatus === 'completed' ? '已完成' : newStatus === 'in-progress' ? '进行中' : '待处理'
+  showMessage(`任务状态已更新为${statusText}`)
+  window.ipcRenderer.send('task-changed')
 }
 
 /**
@@ -174,6 +188,8 @@ async function updateTaskStatus(task: Task, newStatus: Task['status']) {
 async function updateTaskPriority(task: Task, newPriority: Task['priority']) {
   await db.updateTask(task.id!, { priority: newPriority })
   await loadTasks()
+  const priorityText = newPriority === 'high' ? '高优先级' : newPriority === 'medium' ? '中优先级' : '低优先级'
+  showMessage(`任务优先级已更新为${priorityText}`)
 }
 
 /**
@@ -183,6 +199,8 @@ async function deleteTask(taskId: string) {
   if (confirm('确定要删除这个任务吗？')) {
     await db.tasks.delete(taskId)
     await loadTasks()
+    showMessage('任务已删除')
+    window.ipcRenderer.send('task-changed')
   }
 }
 
@@ -387,8 +405,8 @@ async function handleAddTask() {
       </div>
     </div>
     <Toast
-      message="任务标题已存在，请使用不同的标题"
-      type="warning"
+      :message="toastMessage"
+      :type="toastType"
       v-model="showToast"
     />
   </SubWindowLayout>

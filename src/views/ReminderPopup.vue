@@ -1,16 +1,48 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { useReminder } from '../composable/useReminder'
+import type { Reminder } from '../db'
 
 const { reminderQueue, acknowledgeReminder, checkReminders } = useReminder()
+
+const autoDismissTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function scheduleAutoDismiss(reminder: Reminder) {
+  if (!reminder.id) return
+  if (autoDismissTimers.has(reminder.id)) {
+    return
+  }
+  const timer = setTimeout(() => {
+    acknowledgeReminder(reminder)
+    autoDismissTimers.delete(reminder.id!)
+  }, 2000)
+  autoDismissTimers.set(reminder.id, timer)
+}
+
+function clearAllTimers() {
+  autoDismissTimers.forEach((timer) => clearTimeout(timer))
+  autoDismissTimers.clear()
+}
+
+watch(
+  () => reminderQueue.value,
+  (newQueue) => {
+    newQueue.forEach((reminder) => {
+      scheduleAutoDismiss(reminder)
+    })
+  },
+  { immediate: true, deep: true }
+)
+
 onMounted(async () => {
-  // 监听主进程的更新消息
   window.ipcRenderer.on('update-reminders', async () => {
     await checkReminders()
   })
 })
+
 onUnmounted(() => {
   window.ipcRenderer.removeAllListeners('update-reminders')
+  clearAllTimers()
 })
 </script>
 

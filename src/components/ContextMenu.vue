@@ -1,23 +1,31 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useModel } from '../composable/useModel'
+import db from '../db'
 
 const { loopAction } = useModel()
 
 const emit = defineEmits(['close'])
 
-const menuItems = computed(() => [
-  { id: 'task', label: '添加任务', icon: '🔖' },
-  { id: 'reminder', label: '添加提醒', icon: '⏰' },
+interface MenuItem {
+  id: string
+  label: string
+  icon: string
+}
+
+const menuItems = computed<MenuItem[]>(() => [
+  { id: 'task', label: '任务管理', icon: '📝' },
+  { id: 'reminder', label: '提醒管理', icon: '⏰' },
+  { id: 'sticky-note', label: '新建便签', icon: '📌' },
   {
     id: 'pet',
-    label: '宠物管理',
+    label: loopAction.value.isLoop ? '暂停动画' : '播放动画',
     icon: '🐶',
   },
-  { id: 'exit', label: '退出应用', icon: '👋' },
+  { id: 'settings', label: '设置', icon: '⚙️' },
 ])
 
-const handleMenuClick = (menuId) => {
+const handleMenuClick = async (menuId: string) => {
   const ipcRenderer = window.ipcRenderer
 
   switch (menuId) {
@@ -33,20 +41,45 @@ const handleMenuClick = (menuId) => {
         title: '提醒管理',
       })
       break
+    case 'sticky-note':
+      const colors = ['#fff3cd', '#d4edda', '#d1ecf1', '#f8d7da', '#e2e3e5']
+      const randomColor = colors[Math.floor(Math.random() * colors.length)]
+      const noteX = Math.random() * (window.screen.width - 240) + 50
+      const noteY = Math.random() * (window.screen.height - 200) + 50
+      
+      const savedId = await db.addStickyNote({
+        content: '',
+        x: noteX,
+        y: noteY,
+        width: 240,
+        height: 200,
+        color: randomColor,
+        isPinned: false,
+      })
+      
+      ipcRenderer.send('create-sticky-note', {
+        id: savedId.toString(),
+        content: '',
+        x: noteX,
+        y: noteY,
+        width: 240,
+        height: 200,
+        color: randomColor,
+        isPinned: false,
+      })
+      break
     case 'pet':
-      // ipcRenderer.send('open-sub-window', {
-      //   windowId: 'pet',
-      //   title: '宠物管理',
-      // })
       if (loopAction.value.isLoop) {
         loopAction.value.isLoop = false
       } else {
         loopAction.value.isLoop = true
       }
       break
-    case 'exit':
-      // ipcRenderer.send('exit-app')
-      ipcRenderer.send('minimize-main-window')
+    case 'settings':
+      ipcRenderer.send('open-sub-window', {
+        windowId: 'settings',
+        title: '设置',
+      })
       break
   }
   emit('close')
@@ -54,14 +87,69 @@ const handleMenuClick = (menuId) => {
 </script>
 
 <template>
-  <div class="fixed z-[1000] right-0.5 top-8">
+  <div class="context-menu">
     <div
       v-for="item in menuItems"
       :key="item.id"
       @click="handleMenuClick(item.id)"
-      class="flex items-center justify-center cursor-pointer mt-2.5 w-6 h-6 rounded-full bg-[#ffffff60] text-[12px] transition-colors duration-200 hover:bg-[#ffffff]"
+      class="menu-item"
+      :title="item.label"
     >
       <span>{{ item.icon }}</span>
     </div>
   </div>
 </template>
+
+<style scoped>
+.context-menu {
+  position: fixed;
+  left: 8px;
+  top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 999;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: scale(1.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.menu-item:active {
+  transform: scale(0.95);
+  background: rgba(239, 239, 239, 0.9);
+}
+
+.menu-item:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 32px;
+  background: rgba(55, 65, 81, 0.95);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+  z-index: 1000;
+}
+</style>

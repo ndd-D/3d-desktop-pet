@@ -28,7 +28,7 @@
     "@vitejs/plugin-vue": "^5.0.4",
     "@vue/eslint-config-prettier": "^10.2.0",
     "autoprefixer": "^10.4.20",
-    "electron": "^30.0.1",
+    "electron": "^30.5.1",
     "electron-builder": "^24.13.3",
     "postcss": "^8.5.2",
     "prettier": "^3.5.1",

@@ -61,6 +61,38 @@ export interface Reminder {
   updatedAt: number
 }
 
+export interface ClipboardItem {
+  id?: string
+  type: 'text' | 'image' | 'file'
+  content: string
+  filePath?: string
+  fileName?: string
+  createdAt: number
+}
+
+export interface StickyNote {
+  id?: string
+  content: string
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+  isPinned: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface Config {
+  id?: string
+  clipboardPath: string
+  stickyNotePath: string
+  clipboardMode: 'append' | 'new'
+  clipboardAppendTime: 'day' | 'hour' | 'minute'
+  createdAt: number
+  updatedAt: number
+}
+
 /**
  * 宠物应用数据库类
  * @class PetAppDB
@@ -69,15 +101,29 @@ export interface Reminder {
 class PetAppDB extends Dexie {
   tasks!: Table<Task>
   reminders!: Table<Reminder>
+  clipboard!: Table<ClipboardItem>
+  config!: Table<Config>
+  stickyNotes!: Table<StickyNote>
 
   constructor() {
     super('petApp')
 
-    // 定义数据库表结构和索引
     this.version(1).stores({
       tasks: '++id, title, status, priority, createdAt, updatedAt, dueDate',
       reminders:
         '++id, title, reminderTime, repeatType, isEnabled, lastAcknowledgedAt, createdAt',
+    })
+
+    this.version(2).stores({
+      clipboard: '++id, type, createdAt',
+    })
+
+    this.version(3).stores({
+      config: '++id',
+    })
+
+    this.version(4).stores({
+      stickyNotes: '++id, createdAt, updatedAt',
     })
   }
 
@@ -205,6 +251,38 @@ class PetAppDB extends Dexie {
   }
 
   /**
+   * 添加剪贴板记录
+   */
+  async addClipboardItem(item: Omit<ClipboardItem, 'id' | 'createdAt'>) {
+    const timestamp = Date.now()
+    return await this.clipboard.add({
+      ...item,
+      createdAt: timestamp,
+    })
+  }
+
+  /**
+   * 获取所有剪贴板记录
+   */
+  async getClipboardItems() {
+    return await this.clipboard.orderBy('createdAt').reverse().toArray()
+  }
+
+  /**
+   * 删除剪贴板记录
+   */
+  async deleteClipboardItem(id: string) {
+    return await this.clipboard.delete(id)
+  }
+
+  /**
+   * 清空剪贴板记录
+   */
+  async clearClipboard() {
+    return await this.clipboard.clear()
+  }
+
+  /**
    * 导出所有数据
    * @returns {Promise<Object>} 返回所有表的数据
    */
@@ -212,6 +290,8 @@ class PetAppDB extends Dexie {
     return {
       tasks: await this.tasks.toArray(),
       reminders: await this.reminders.toArray(),
+      clipboard: await this.clipboard.toArray(),
+      stickyNotes: await this.stickyNotes.toArray(),
     }
   }
 
@@ -220,16 +300,82 @@ class PetAppDB extends Dexie {
    * @param {Object} data - 要导入的数据对象
    * @param {Task[]} [data.tasks] - 任务数据
    * @param {Reminder[]} [data.reminders] - 提醒数据
+   * @param {ClipboardItem[]} [data.clipboard] - 剪贴板数据
+   * @param {StickyNote[]} [data.stickyNotes] - 便签数据
    */
-  async importData(data: { tasks?: Task[]; reminders?: Reminder[] }) {
-    await this.transaction('rw', [this.tasks, this.reminders], async () => {
-      // 清除现有数据
-      await Promise.all([this.tasks.clear(), this.reminders.clear()])
+  async importData(data: { tasks?: Task[]; reminders?: Reminder[]; clipboard?: ClipboardItem[]; stickyNotes?: StickyNote[] }) {
+    await this.transaction('rw', [this.tasks, this.reminders, this.clipboard, this.stickyNotes], async () => {
+      await Promise.all([this.tasks.clear(), this.reminders.clear(), this.clipboard.clear(), this.stickyNotes.clear()])
 
-      // 导入新数据
       if (data.tasks?.length) await this.tasks.bulkAdd(data.tasks)
       if (data.reminders?.length) await this.reminders.bulkAdd(data.reminders)
+      if (data.clipboard?.length) await this.clipboard.bulkAdd(data.clipboard)
+      if (data.stickyNotes?.length) await this.stickyNotes.bulkAdd(data.stickyNotes)
     })
+  }
+
+  async getConfig(): Promise<Config> {
+    const configs = await this.config.toArray()
+    if (configs.length > 0) {
+      const config = configs[0]
+      return {
+        ...config,
+        clipboardMode: (config as any).clipboardMode || 'append',
+        clipboardAppendTime: (config as any).clipboardAppendTime || 'day',
+      }
+    }
+    const defaultConfig: Omit<Config, 'id' | 'createdAt' | 'updatedAt'> = {
+      clipboardPath: '',
+      stickyNotePath: '',
+      clipboardMode: 'append',
+      clipboardAppendTime: 'day',
+    }
+    const timestamp = Date.now()
+    const id = await this.config.add({
+      ...defaultConfig,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    return { ...defaultConfig, id, createdAt: timestamp, updatedAt: timestamp }
+  }
+
+  async updateConfig(changes: Partial<Omit<Config, 'id' | 'createdAt'>>) {
+    const configs = await this.config.toArray()
+    if (configs.length === 0) {
+      await this.getConfig()
+    }
+    return await this.config.update(1, {
+      ...changes,
+      updatedAt: Date.now(),
+    })
+  }
+
+  async addStickyNote(note: Omit<StickyNote, 'id' | 'createdAt' | 'updatedAt'>) {
+    const timestamp = Date.now()
+    return await this.stickyNotes.add({
+      ...note,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+  }
+
+  async updateStickyNote(id: string, changes: Partial<Omit<StickyNote, 'id' | 'createdAt'>>) {
+    return await this.stickyNotes.update(id, {
+      ...changes,
+      updatedAt: Date.now(),
+    })
+  }
+
+  async getStickyNotes() {
+    return await this.stickyNotes.orderBy('createdAt').toArray()
+  }
+
+  async deleteStickyNote(id: string) {
+    return await this.stickyNotes.delete(id)
+  }
+
+  async clearStickyNotes() {
+    return await this.stickyNotes.clear()
   }
 }
 

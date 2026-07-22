@@ -1,0 +1,21 @@
+{
+  "appId": "com.example.3d-desktop-pet",
+  "productName": "3D桌面宠物",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "dir",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/rabbit.png"
+  },
+  "publish": null
+}

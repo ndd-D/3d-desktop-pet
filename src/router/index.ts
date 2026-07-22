@@ -23,6 +23,17 @@ const routes = [
     name: 'Pet',
     component: () => import('../views/PetView.vue'),
   },
+  
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('../views/SettingsView.vue'),
+  },
+  {
+    path: '/sticky-note',
+    name: 'StickyNote',
+    component: () => import('../views/StickyNote.vue'),
+  },
   {
     path: '/reminder-popup',
     name: 'reminder-popup',

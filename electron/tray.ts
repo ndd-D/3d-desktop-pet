@@ -3,7 +3,7 @@ import path from 'node:path'
 
 let tray: Tray | null = null
 
-export function createTray(callback: () => void) {
+export function createTray(showWindowCallback: () => void, quitCallback: () => void) {
   // 创建托盘图标
   const icon = nativeImage.createFromPath(
     path.join(process.env.VITE_PUBLIC, 'rabbitRound.png')
@@ -32,13 +32,17 @@ export function createTray(callback: () => void) {
     {
       label: '退出',
       click: () => {
-        callback()
+        quitCallback()
       },
     },
   ])
 
   tray.setToolTip('小桌宠')
   tray.setContextMenu(contextMenu)
+
+  tray.on('click', () => {
+    showWindowCallback()
+  })
 }
 
 // 销毁托盘

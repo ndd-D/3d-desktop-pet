@@ -20,6 +20,15 @@ const newReminder = ref({
   dailyTime: '',
 })
 const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error' | 'warning'>('success')
+
+function showMessage(message: string, type: 'success' | 'error' | 'warning' = 'success') {
+  toastMessage.value = message
+  toastType.value = type
+  showToast.value = true
+}
+
 // 重复类型显示文本
 const repeatTypeMap = {
   none: '不重复',
@@ -90,7 +99,7 @@ async function addReminder() {
     (r) => r.title === newReminder.value.title
   )
   if (existingReminder) {
-    showToast.value = true
+    showMessage('提醒标题已存在，请使用不同的标题', 'warning')
     throw new Error()
   }
 
@@ -124,6 +133,7 @@ async function addReminder() {
   }
 
   await loadReminders()
+  showMessage('提醒添加成功')
 }
 
 /**
@@ -132,6 +142,7 @@ async function addReminder() {
 async function toggleReminderStatus(reminder: Reminder) {
   await db.toggleReminder(reminder.id!, !reminder.isEnabled)
   await loadReminders()
+  showMessage(reminder.isEnabled ? '提醒已禁用' : '提醒已启用')
 }
 
 /**
@@ -141,6 +152,7 @@ async function deleteReminder(reminderId: string) {
   if (confirm('确定要删除这个提醒吗？')) {
     await db.reminders.delete(reminderId)
     await loadReminders()
+    showMessage('提醒已删除')
   }
 }
 
@@ -388,8 +400,8 @@ async function getLatestReminderTime(reminderId: string) {
       </div>
     </div>
     <Toast
-      message="提醒标题已存在，请使用不同的标题"
-      type="warning"
+      :message="toastMessage"
+      :type="toastType"
       v-model="showToast"
     />
   </SubWindowLayout>
